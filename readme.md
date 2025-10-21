@@ -100,7 +100,7 @@ Used by `vlucas/phpdotenv` to populate `$_ENV`.
 
 #### 📄 `examples/find_user.php`
 **Example: Search and decrypt a user**.  
-- Searches for a user by email (`john@example.com`)
+- Searches for a user by email (`alan@example.com`)
 - Uses **blind index** to query encrypted data without decryption
 - Fetches and **decrypts sensitive fields** for display
 - Proves end-to-end correctness (encrypt → store → search → decrypt).
@@ -116,3 +116,4 @@ Used by `vlucas/phpdotenv` to populate `$_ENV`.
 
 This structure follows **separation of concerns**, avoids code duplication, and ensures security is **baked in**, not bolted on — ideal for both learning and production use.
  
+
