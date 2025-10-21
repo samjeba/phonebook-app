@@ -1,0 +1,21 @@
+{
+    "name": "sample/secure-phonebook",
+    "description": "A secure phone book app with CipherSweet encryption for sensitive user data",
+    "type": "project",
+    "require": {
+        "php": "^8.0",
+        "paragonie/ciphersweet": "^4.8",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\Lib\\": "lib/",
+            "App\\Model\\": "models/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
