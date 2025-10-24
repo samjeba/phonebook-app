@@ -13,59 +13,68 @@ class CipherSweetManager
     private static ?CipherSweet $engine = null;
     private static ?EncryptedRow $userRow = null;
 
-    private static function getBinaryKey(): string
+    public static function isEncryptionEnabled(): bool
     {
-        if (!isset($_ENV['CIPHERSWEET_KEY'])) {
-            throw new \RuntimeException('Missing CIPHERSWEET_KEY in environment');
-        }
+        return !empty($_ENV['CIPHERSWEET_KEY']);
+    }
 
-        $hexKey = $_ENV['CIPHERSWEET_KEY'];
+    private static function getBinaryKey(): ?string
+    {
+        $hexKey = $_ENV['CIPHERSWEET_KEY'] ?? '';
+        if (!$hexKey) {
+            return null;
+        }
 
         if (!ctype_xdigit($hexKey) || strlen($hexKey) !== 64) {
             throw new \InvalidArgumentException(
-                'CIPHERSWEET_KEY must be a 64-character hexadecimal string (256-bit key)'
+                'CIPHERSWEET_KEY must be a 64-character hex string or empty'
             );
         }
 
-        $binary = hex2bin($hexKey);
-        if ($binary === false) {
-            throw new \InvalidArgumentException('Invalid hex key');
-        }
-
-        return $binary;
+        $binary = @hex2bin($hexKey);
+        return $binary ?: null;
     }
 
-    public static function getEngine(): CipherSweet
+    public static function getEngine(): ?CipherSweet
     {
+        if (!self::isEncryptionEnabled()) {
+            return null;
+        }
+
         if (self::$engine === null) {
             $binaryKey = self::getBinaryKey();
+            if ($binaryKey === null) {
+                return null;
+            }
             $keyProvider = new StringProvider($binaryKey);
             self::$engine = new CipherSweet($keyProvider);
         }
         return self::$engine;
     }
 
-    public static function getUserEncryptedRow(): EncryptedRow
+    public static function getUserEncryptedRow(): ?EncryptedRow
     {
+        if (!self::isEncryptionEnabled()) {
+            return null;
+        }
+
         if (self::$userRow === null) {
             $engine = self::getEngine();
+            if ($engine === null) {
+                return null;
+            }
+
             self::$userRow = new EncryptedRow($engine, 'users');
             self::$userRow->addField('email');
             self::$userRow->addField('phone');
-
             self::$userRow->addBlindIndex('email', new BlindIndex(
                 'email_idx',
-                [function ($value) {
-                    return strtolower((string)$value);
-                }],
+                [fn($v) => strtolower((string)$v)],
                 32
             ));
-
             self::$userRow->addBlindIndex('phone', new BlindIndex(
                 'phone_idx',
-                [function ($value) {
-                    return (string)$value;
-                }],
+                [fn($v) => (string)$v],
                 32
             ));
         }
