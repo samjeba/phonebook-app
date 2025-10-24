@@ -107,6 +107,18 @@ Used by `vlucas/phpdotenv` to populate `$_ENV`.
 
 ---
 
+---
+
+### 📁 `utils/` – Encryption Utility Scripts
+
+This directory contains **command-line utilities** for managing encrypted data in your secure phone book application. These tools help with **initial data migration**, **verification**, and **debugging**.
+
+> ⚠️ **Security Note**:  
+> The `--decrypt` command exposes plaintext sensitive data.  
+> **Never run it in production** or log its output.
+
+---
+
 ## 🔐 Security Highlights
 - **No plaintext secrets** in code (keys in `.env`)
 - **All sensitive data encrypted** before DB write
