@@ -1,131 +1,160 @@
-# Secure Phone Book Application – Project Descriptions
+---
 
-A secure PHP phone book application that encrypts sensitive user data (email, phone) at rest using **CipherSweet**, stores it in **MySQL**, and supports searchable encryption via **blind indexes**.
+# 🔐 Secure Phone Book – Encrypted User Data with CipherSweet
+
+A PHP phone book application that **optionally encrypts sensitive user data** (`email`, `phone`) at rest using **CipherSweet**, stores it in **MySQL**, and supports **searchable encryption** via blind indexes.
+
+> ✅ **Encryption is enabled only when `CIPHERSWEET_KEY` is set**  
+> 📖 **Plaintext mode** (no encryption) is used when the key is empty or unset — ideal for development, testing, or migration.
 
 ---
 
-## 📁 Project Root: `/phonebook-app`
+## 🌟 Features
+
+- **Transparent encryption**: Sensitive fields encrypted before DB write, decrypted on read
+- **Searchable encryption**: Find users by email/phone without decrypting all data
+- **Dual-mode support**:
+  - 🔐 **Encrypted mode**: Full CipherSweet protection (production)
+  - 📖 **Plaintext mode**: No encryption (development/testing)
+- **Modern cryptography**: XChaCha20-Poly1305 AEAD via libsodium
+- **Idempotent utilities**: Safely migrate plaintext → encrypted data
+
+---
+
+## 📁 Project Structure
 
 ```
 /phonebook-app
 │
-├── .env
+├── .env                     # Environment config (key controls encryption mode)
 ├── composer.json
 ├── bootstrap.php
 ├── config/
-│   └── database.php
+│   └── database.php         # PDO connection
 ├── lib/
-│   └── CipherSweetManager.php
+│   └── CipherSweetManager.php  # Encryption engine (optional)
 ├── models/
-│   └── SecureUser.php
-└── examples/
-    ├── create_user.php
-    └── find_user.php
+│   └── SecureUser.php       # Secure DAO (auto-switches mode)
+├── examples/
+│   ├── create_user.php      # Create user (encrypts if key set)
+│   └── find_user.php        # Search + decrypt (or plaintext)
+└── utils/
+    └── encrypt_decrypt_util.php  # Migration & debugging tools
 ```
 
 ---
 
-### 📄 `.env`
-**Environment configuration file** (never committed to version control).  
-Contains sensitive settings like:
-- Database credentials (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`)
-- Encryption key (`CIPHERSWEET_KEY` — a 64-character hex-encoded 256-bit key)  
+## ⚙️ Configuration
 
-Used by `vlucas/phpdotenv` to populate `$_ENV`.
+### `.env` Controls Encryption Mode
 
----
+| Setting | Behavior |
+|--------|---------|
+| `CIPHERSWEET_KEY=64_hex_chars` | 🔐 **Encrypted mode** (e.g., production) |
+| `CIPHERSWEET_KEY=` or unset | 📖 **Plaintext mode** (e.g., development) |
 
-### 📄 `composer.json`
-**PHP dependency and autoloading configuration**.  
-- Declares required packages: `paragonie/ciphersweet`, `vlucas/phpdotenv`
-- Defines **PSR-4 autoloading** rules:
-  - `App\Lib\` → `lib/`
-  - `App\Model\` → `models/`
-- Ensures classes are autoloaded without manual `require` statements.
+> 🔑 Generate a key:  
+> ```bash
+> php -r "echo bin2hex(random_bytes(32));"
+> ```
 
----
+### Database Schema (MySQL)
 
-### 📄 `bootstrap.php`
-**Application bootstrap/loader**.  
-- Loads Composer’s autoloader (`vendor/autoload.php`)
-- Initializes **dotenv** to load `.env` into `$_ENV`
-- Included at the top of every script to set up the runtime environment.
+```sql
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email TEXT NOT NULL,          -- plaintext or CSv1:... encrypted
+    phone TEXT NOT NULL,          -- plaintext or CSv1:... encrypted
+    email_idx VARBINARY(32) NULL, -- blind index (NULL in plaintext mode)
+    phone_idx VARBINARY(32) NULL  -- blind index (NULL in plaintext mode)
+);
+```
 
----
-
-### 📁 `config/` — Configuration Directory
-
-#### 📄 `config/database.php`
-**Database connection factory**.  
-- Returns a configured **PDO instance** connected to MySQL
-- Uses credentials from `.env`
-- Sets secure PDO options (exceptions, fetch mode, no emulation)
+> ✅ Columns `email_idx` and `phone_idx` are **nullable** to support both modes.
 
 ---
 
-### 📁 `lib/` — Core Library / Utility Classes
+## ▶️ Usage
 
-#### 📄 `lib/CipherSweetManager.php`
-**Centralized CipherSweet encryption engine manager**.  
-- Safely loads and validates the **256-bit hex encryption key** from `.env`
-- Provides a singleton-like `CipherSweet` engine instance
-- Configures an `EncryptedRow` for the `users` table with:
-  - Encrypted fields: `email`, `phone`
-  - Blind indexes for searchable encryption (case-normalized email, raw phone)
-- Ensures consistent key usage across encryption and decryption.
+### 1. Install Dependencies
+```bash
+composer install
+```
 
----
+### 2. Set Up `.env`
+```env
+# Encrypted mode (production)
+CIPHERSWEET_KEY=1a2b3c4d...64_hex_chars
 
-### 📁 `models/` — Data Models (Business Logic)
+# OR plaintext mode (development)
+CIPHERSWEET_KEY=
+```
 
-#### 📄 `models/SecureUser.php`
-**Secure user data access object (DAO)**.  
-- Wraps database operations with **transparent encryption/decryption**
-- Methods:
-  - `create($name, $email, $phone)` → encrypts + stores
-  - `findByEmail($email)` → searches via blind index + decrypts
-  - `findByPhone($phone)` → same for phone
-  - `findById($id)` → decrypts full record
-- Uses `CipherSweetManager` internally — no crypto logic exposed to app.
+### 3. Run Examples
+```bash
+# Create a user (auto-encrypts if key set)
+php examples/create_user.php
 
----
-
-### 📁 `examples/` — Demo / Test Scripts
-
-#### 📄 `examples/create_user.php`
-**Example: Insert a new encrypted user**.  
-- Creates a test user (`John Doe`, `john@example.com`, `+1234567890`)
-- Demonstrates **encryption at rest**
-- Outputs the new user’s database ID.
-
-#### 📄 `examples/find_user.php`
-**Example: Search and decrypt a user**.  
-- Searches for a user by email (`alan@example.com`)
-- Uses **blind index** to query encrypted data without decryption
-- Fetches and **decrypts sensitive fields** for display
-- Proves end-to-end correctness (encrypt → store → search → decrypt).
+# Find a user (auto-decrypts if needed)
+php examples/find_user.php
+```
 
 ---
 
+## 🛠️ Utilities (`utils/`)
+
+### Encrypt Existing Data
+Migrate plaintext records to encrypted storage:
+```bash
+php utils/encrypt_decrypt_util.php --encrypt
+```
+
+### Verify Encryption
+Show cipher details and decrypt records (debug only!):
+```bash
+# Show encryption algorithm
+php utils/encrypt_decrypt_util.php --cipher-info
+
+# Decrypt and display (⚠️ never in production!)
+php utils/encrypt_decrypt_util.php --decrypt
+```
+
+> 📌 **Utility scripts respect `.env`**:  
+> - If `CIPHERSWEET_KEY` is set → encrypt/decrypt  
+> - If empty → operate on plaintext
+
 ---
 
-### 📁 `utils/` – Encryption Utility Scripts
+## 🔐 Security Notes
 
-This directory contains **command-line utilities** for managing encrypted data in your secure phone book application. These tools help with **initial data migration**, **verification**, and **debugging**.
-
-> ⚠️ **Security Note**:  
-> The `--decrypt` command exposes plaintext sensitive data.  
-> **Never run it in production** or log its output.
+- **Encryption**: Uses **XChaCha20-Poly1305** (256-bit AEAD) via libsodium
+- **Key management**: Key never stored in code — only in `.env`
+- **Search safety**: Blind indexes prevent plaintext leakage
+- **Production use**: Always set `CIPHERSWEET_KEY`; remove `utils/` from production servers
 
 ---
 
-## 🔐 Security Highlights
-- **No plaintext secrets** in code (keys in `.env`)
-- **All sensitive data encrypted** before DB write
-- **Searchable encryption** without leaking plaintext
-- **Modern crypto**: libsodium-backed AEAD via CipherSweet
-- **Minimal attack surface**: crypto isolated in `lib/` and `models/`
+## 🧪 Development Workflow
 
-This structure follows **separation of concerns**, avoids code duplication, and ensures security is **baked in**, not bolted on — ideal for both learning and production use.
- 
+1. **Start in plaintext mode** (`CIPHERSWEET_KEY=`) for easy debugging
+2. **Test encryption** by setting a valid key
+3. **Migrate data** using `--encrypt` utility
+4. **Deploy to production** with key enabled and utilities removed
 
+---
+
+## 📚 Dependencies
+
+- PHP 8.0+
+- `ext-sodium` (enabled by default in PHP 7.2+)
+- MySQL 5.7+
+- Packages:
+  - `paragonie/ciphersweet`
+  - `vlucas/phpdotenv`
+
+---
+
+> 💡 **Tip**: Use plaintext mode for unit tests, encrypted mode for staging/production!
+
+This design gives you **flexibility without compromising security** — encrypt when it matters, simplify when it doesn’t.
